@@ -37,7 +37,11 @@ final class WebOSClient: NSObject, URLSessionDelegate {
     }
 
     func register(forcePairing: Bool) throws -> String {
-        var payload = registrationPayload(forcePairing: forcePairing)
+        try register(forcePairing: forcePairing, unsigned: false)
+    }
+
+    private func register(forcePairing: Bool, unsigned: Bool) throws -> String {
+        var payload = registrationPayload(forcePairing: forcePairing, unsigned: unsigned)
         if !forcePairing, let clientKey, !clientKey.isEmpty {
             payload["client-key"] = clientKey
         }
@@ -50,7 +54,7 @@ final class WebOSClient: NSObject, URLSessionDelegate {
 
         let deadline = Date().addingTimeInterval(forcePairing ? 90 : 25)
         while Date() < deadline {
-            let message = try receiveJSON(timeout: 5)
+            let message = try receiveJSON(timeout: max(0.1, deadline.timeIntervalSinceNow))
             let type = message["type"] as? String
 
             if type == "registered" {
@@ -65,7 +69,13 @@ final class WebOSClient: NSObject, URLSessionDelegate {
             }
 
             if type == "error" {
-                throw TVControlError.webOS(message["error"] as? String ?? "webOS registration failed.")
+                let error = message["error"] as? String ?? "webOS registration failed."
+                if Self.shouldRetryUnsigned(error: error, unsigned: unsigned) {
+                    close()
+                    try open()
+                    return try register(forcePairing: forcePairing, unsigned: true)
+                }
+                throw TVControlError.webOS(error)
             }
         }
 
@@ -179,8 +189,12 @@ final class WebOSClient: NSObject, URLSessionDelegate {
         }
     }
 
-    private func registrationPayload(forcePairing: Bool) -> [String: Any] {
-        [
+    static func shouldRetryUnsigned(error: String, unsigned: Bool) -> Bool {
+        !unsigned && error.lowercased().contains("blacklisted certificate")
+    }
+
+    func registrationPayload(forcePairing: Bool, unsigned: Bool = false) -> [String: Any] {
+        var payload: [String: Any] = [
             "forcePairing": forcePairing,
             "pairingType": "PROMPT",
             "manifest": [
@@ -246,5 +260,14 @@ final class WebOSClient: NSObject, URLSessionDelegate {
                 ],
             ],
         ]
+        if unsigned, var manifest = payload["manifest"] as? [String: Any] {
+            let signed = manifest.removeValue(forKey: "signed") as? [String: Any]
+            manifest.removeValue(forKey: "signatures")
+            let permissions = (manifest["permissions"] as? [String] ?? [])
+                + (signed?["permissions"] as? [String] ?? [])
+            manifest["permissions"] = Array(Set(permissions)).sorted()
+            payload["manifest"] = manifest
+        }
+        return payload
     }
 }
