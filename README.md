@@ -24,6 +24,24 @@ brew uninstall --cask lgtv-control
 2. From the menu bar icon → **Pair / Re-pair**, enter the TV's IP and accept the on-screen prompt on the TV. The client key is saved to Keychain.
 3. (Optional, only needed for service-menu PIN entry) On the TV, navigate to **Settings → All Settings → Network → LG Connect Apps** and copy the 8-character IP control keycode. In the menu bar app open **Settings → IP Control Keycode**, paste it, and save.
 
+## webOS 26 compatibility
+
+Use **v0.5.1 or later** with webOS 26. Some newer firmware rejects the legacy registration certificate with:
+
+```text
+403 Pairing rejected: blacklisted certificate detected
+```
+
+The app first sends the original signed registration handshake for older TVs. When the TV explicitly reports this certificate error, it reconnects and retries once with an unsigned manifest, preserving the requested permissions. Other errors are returned normally. This applies to both the menu bar app and CLI.
+
+After upgrading the TV firmware:
+
+1. Install [v0.5.1 or later](https://github.com/li-yifei/lgtv-control-menubar/releases/latest) and restart the app.
+2. Try **Refresh** to reconnect with the saved pairing key.
+3. If authorization is needed, select **Pair / Re-pair**, enter the TV's current IP address, and accept the prompt on the TV.
+
+Validation covers live status retrieval on webOS 26 and automated regression checks for the legacy manifest, permission preservation, and bounded fallback. Older firmware compatibility has been checked at the code level; coverage across all TV models and firmware versions remains incomplete. Service-menu access and IP-control PIN entry require separate firmware-specific verification.
+
 ## Features
 
 - Volume up / down, mute toggle, set volume by slider
@@ -58,6 +76,12 @@ Reads `LG_TV_CONFIG` first, then `~/.config/lgtv-pairing.json`. Individual comma
 ```
 
 Produces `build/LG TV Control.app`, `build/bin/lgtv`, and `build/LG-TV-Control.app.zip` (release artifact).
+
+Run the registration compatibility checks locally (no TV or pairing credentials required):
+
+```sh
+sh scripts/test-registration.sh
+```
 
 For stable Keychain access across rebuilds, generate a local self-signed code signing cert once:
 
