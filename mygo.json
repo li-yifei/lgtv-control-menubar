@@ -1,0 +1,14 @@
+{
+  "name": "LG TV Control",
+  "identifier": "io.github.li-yifei.lgtv-control",
+  "version": "0.6.0",
+  "main": "./cmd/lgtv-ui",
+  "out": "build",
+  "macos": {
+    "infoPlist": {
+      "LSUIElement": true,
+      "LSMinimumSystemVersion": "14.0",
+      "NSLocalNetworkUsageDescription": "LG TV Control connects to your LG TV and sends Wake-on-LAN packets."
+    }
+  }
+}
